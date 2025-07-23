@@ -12,7 +12,7 @@ DIGIT [0-9]
 %%
 
 int main() {
-    printf("Enter numbers (Ctrl+D to end):\n");
+    printf("Enter numbers:\n");
     yylex();
     return 0;
 }
