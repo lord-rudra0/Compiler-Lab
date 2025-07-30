@@ -1,7 +1,7 @@
 %{
     int print=0;
     int scan=0;
-%}
+    %}
 
 %%
 "printf" { print++; printf("writef"); }
