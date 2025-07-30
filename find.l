@@ -1,12 +1,11 @@
 %{
     int print=0;
     int scan=0;
-    %}
+%}
 
 %%
 "printf" { print++; printf("writef"); }
 "scanf" { scan++; printf("readf"); }
-.|\n        { putchar(yytext[0]); } 
 %%
 
 
