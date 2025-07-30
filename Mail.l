@@ -1,5 +1,3 @@
-lex program of valid gmail ID
-
 %{
    int valid = 0;
 %}
