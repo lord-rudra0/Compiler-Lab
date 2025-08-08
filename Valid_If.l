@@ -13,7 +13,7 @@ int main() {
     printf("Enter a C program:\n");
     yylex();
     printf("Number of valid if statements: %d\n", valid_if_count);
-    printf("Number of unmatched if statements: %d\n", if_stack);
+    
     return 0;
 }
 
