@@ -1,0 +1,7 @@
+states: 0 1 2
+start: 0
+accept: 2
+alphabet: a b
+trans:
+0 e 1
+1 e 2

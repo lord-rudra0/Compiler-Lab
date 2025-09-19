@@ -3,108 +3,161 @@
 #include <string.h>
 #include <ctype.h>
 
-void epsilon_closure(int n, int T, int *from, int *to, char *sym, const int start_set[], int closure[]) {
-    int *stack = malloc(n * sizeof(int));
-    int top = 0;
-    for (int i = 0; i < n; ++i) {
-        closure[i] = start_set[i];
-        if (closure[i]) stack[top++] = i;
+// Simple NFA representation for epsilon-closure computation
+// Input file format (example):
+// states: 0 1 2 3
+// start: 0
+// accept: 3
+// alphabet: a b
+// trans:
+// 0 a 1
+// 0 e 2
+// 1 b 1
+// 2 a 3
+// 2 e 0
+// (blank line or EOF ends transitions)
+
+#define MAX_STATES 256
+#define MAX_TRANS 1024
+
+typedef struct Transition {
+    int from;
+    char sym[8]; // symbol or "e" for epsilon
+    int to;
+} Transition;
+
+int n_states = 0;
+int states_list[MAX_STATES];
+Transition trans[MAX_TRANS];
+int trans_count = 0;
+
+int seen[MAX_STATES];
+int closure_set[MAX_STATES];
+
+void add_transition(int f, const char *s, int t) {
+    if (trans_count >= MAX_TRANS) {
+        fprintf(stderr, "too many transitions\n");
+        exit(1);
     }
-    while (top > 0) {
-        int s = stack[--top];
-        for (int i = 0; i < T; ++i) {
-            if (from[i] == s && sym[i] == 'e' && !closure[to[i]]) {
-                closure[to[i]] = 1;
-                stack[top++] = to[i];
+    trans[trans_count].from = f;
+    strncpy(trans[trans_count].sym, s, sizeof(trans[trans_count].sym)-1);
+    trans[trans_count].sym[sizeof(trans[trans_count].sym)-1] = '\0';
+    trans[trans_count].to = t;
+    trans_count++;
+}
+
+// compute epsilon-closure of state 'start'
+void epsilon_closure(int start) {
+    // reset seen and closure
+    for (int i = 0; i < n_states; ++i) seen[i] = 0;
+    for (int i = 0; i < n_states; ++i) closure_set[i] = 0;
+
+    // stack for DFS
+    int stack[MAX_STATES];
+    int sp = 0;
+    stack[sp++] = start;
+    seen[start] = 1;
+
+    while (sp > 0) {
+        int s = stack[--sp];
+        closure_set[s] = 1;
+        // explore epsilon transitions from s
+        for (int i = 0; i < trans_count; ++i) {
+            if (trans[i].from == s && (strcmp(trans[i].sym, "e") == 0 || strcmp(trans[i].sym, "eps") == 0)) {
+                int to = trans[i].to;
+                if (!seen[to]) {
+                    seen[to] = 1;
+                    stack[sp++] = to;
+                }
             }
         }
     }
-    free(stack);
 }
 
-void move_by_symbol(int n, int T, int *from, int *to, char *sym, const int cur[], char c, int out[]) {
-    for (int i = 0; i < n; ++i) out[i] = 0;
-    for (int i = 0; i < T; ++i) {
-        if (sym[i] == c && cur[from[i]]) out[to[i]] = 1;
-    }
-}
-
-int main(void) {
-    int n;
-    printf("Number of states: ");
-    if (scanf("%d", &n) != 1 || n <= 0) { printf("Invalid number of states\n"); return 1; }
-
-    int T;
-    printf("Number of transitions: ");
-    if (scanf("%d", &T) != 1 || T < 0) { printf("Invalid transitions count\n"); return 1; }
-
-    int *from = malloc(T * sizeof(int));
-    int *to = malloc(T * sizeof(int));
-    char *sym = malloc(T * sizeof(char));
-    for (int i = 0; i < T; ++i) {
-        printf("Transition %d (format: from symbol to) [use 'e' for epsilon]: ", i+1);
-        // read symbol as string to accept whitespace-safe input
-        char s[16];
-        if (scanf("%d %15s %d", &from[i], s, &to[i]) != 3) { printf("Bad transition input\n"); return 1; }
-        sym[i] = s[0];
-        if (from[i] < 0 || from[i] >= n || to[i] < 0 || to[i] >= n) {
-            printf("Transition has invalid state index\n"); return 1;
+void print_closure(int start) {
+    epsilon_closure(start);
+    // Print in format: epsilon-closure of q0 :q0q1q2
+    printf("epsilon-closure of q%d :", start);
+    for (int idx = 0; idx < n_states; ++idx) {
+        int s = states_list[idx];
+        if (s >= 0 && s < MAX_STATES && closure_set[s]) {
+            printf("q%d", s);
         }
     }
+    printf("\n");
+}
 
-    int start;
-    printf("Start state: ");
-    if (scanf("%d", &start) != 1 || start < 0 || start >= n) { printf("Invalid start state\n"); return 1; }
+void usage(const char *prog) {
+    fprintf(stderr, "Usage: %s <nfa-file> [state1 state2 ...]\n", prog);
+    fprintf(stderr, "If no states are provided, program will ask interactively.\n");
+}
 
-    int f;
-    printf("Number of final states: ");
-    if (scanf("%d", &f) != 1 || f < 0) { printf("Invalid final count\n"); return 1; }
-    int *final = calloc(n, sizeof(int));
-    for (int i = 0; i < f; ++i) {
-        int fs;
-        if (scanf("%d", &fs) != 1 || fs < 0 || fs >= n) { printf("Invalid final state\n"); return 1; }
-        final[fs] = 1;
+int find_state_index(int s) {
+    for (int i = 0; i < n_states; ++i) if (states_list[i] == s) return i;
+    return -1;
+}
+
+int main(int argc, char **argv) {
+    if (argc < 2) { usage(argv[0]); return 1; }
+    const char *path = argv[1];
+    FILE *f = fopen(path, "r");
+    if (!f) { perror("fopen"); return 1; }
+
+    char line[512];
+    // parse file line by line
+    while (fgets(line, sizeof line, f)) {
+        // trim
+        char *p = line;
+        while (isspace((unsigned char)*p)) p++;
+        if (*p == '\0' || *p == '#') continue;
+
+        if (strncmp(p, "states:", 7) == 0) {
+            p += 7;
+            while (*p) {
+                while (isspace((unsigned char)*p)) p++;
+                if (!*p) break;
+                int v = strtol(p, &p, 10);
+                states_list[n_states++] = v;
+            }
+        } else if (strncmp(p, "trans:", 6) == 0) {
+            // read transitions until blank or EOF
+            while (fgets(line, sizeof line, f)) {
+                char *q = line;
+                while (isspace((unsigned char)*q)) q++;
+                if (*q == '\0') break;
+                if (*q == '#') continue;
+                int a, b;
+                char sym[16];
+                if (sscanf(q, "%d %15s %d", &a, sym, &b) == 3) {
+                    add_transition(a, sym, b);
+                }
+            }
+        }
+    }
+    fclose(f);
+
+    if (n_states == 0) {
+        fprintf(stderr, "no states found in file\n");
+        return 1;
     }
 
-    // consume leftover newline before reading the string
-    int c = getchar();
-    while (c != '\n' && c != EOF) c = getchar();
-
-    char input[1024];
-    printf("Input string (use no 'e' in string; epsilon is only for transitions): ");
-    if (!fgets(input, sizeof(input), stdin)) return 1;
-    // strip newline
-    size_t len = strlen(input);
-    if (len > 0 && input[len-1] == '\n') input[len-1] = '\0';
-
-    // current set: boolean arrays of size n
-    int *cur = calloc(n, sizeof(int));
-    int *tmp = calloc(n, sizeof(int));
-    int *closure = calloc(n, sizeof(int));
-
-    // start with epsilon-closure of start state
-    for (int i = 0; i < n; ++i) cur[i] = 0;
-    cur[start] = 1;
-    epsilon_closure(n, T, from, to, sym, cur, closure);
-    for (int i = 0; i < n; ++i) cur[i] = closure[i];
-
-    // process each character
-    for (size_t idx = 0; idx < strlen(input); ++idx) {
-        char ch = input[idx];
-        // compute move on ch
-        move_by_symbol(n, T, from, to, sym, cur, ch, tmp);
-        // compute epsilon-closure of tmp -> new cur
-        epsilon_closure(n, T, from, to, sym, tmp, closure);
-        for (int i = 0; i < n; ++i) cur[i] = closure[i];
+    // If states provided on command line, compute closures for those states
+    if (argc > 2) {
+        for (int i = 2; i < argc; ++i) {
+            int s = atoi(argv[i]);
+            if (find_state_index(s) < 0) {
+                fprintf(stderr, "state %d not in states list\n", s);
+                continue;
+            }
+            print_closure(s);
+        }
+        return 0;
     }
 
-    // check acceptance
-    int accept = 0;
-    for (int i = 0; i < n; ++i) if (cur[i] && final[i]) { accept = 1; break; }
+    // No states provided: print closure for all states in the states list
+    for (int idx = 0; idx < n_states; ++idx) {
+        print_closure(states_list[idx]);
+    }
 
-    printf("%s\n", accept ? "Accepted" : "Rejected");
-
-    free(from); free(to); free(sym); free(final);
-    free(cur); free(tmp); free(closure);
     return 0;
 }
