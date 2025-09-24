@@ -1,15 +1,3 @@
-/*
- * ShiftReduceParser.c (replaced with a correct recursive-descent parser)
- * Grammar:
- *   E  -> T E'
- *   E' -> + T E' | epsilon
- *   T  -> F T'
- *   T' -> * F T' | epsilon
- *   F  -> ( E ) | id
- *
- * The parser reads input where identifiers are represented by the two-letter token "id".
- */
-
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
@@ -86,9 +74,7 @@ int accept_id() {
         int start = pos;
         pos++;
         while (s[pos] && (isalnum((unsigned char)s[pos]) || s[pos] == '_')) pos++;
-        if (TRACE) {
-            printf("[TRACE] accepted id: '%.*s' (pos %d->%d)\n", pos-start, s+start, start, pos);
-        }
+        /* use table trace for accepted id display; no separate printf here */
         return 1;
     }
     return 0;
@@ -101,7 +87,6 @@ int parseTPrime();
 int parseF();
 
 int parseE() {
-    if (TRACE) printf("[TRACE] enter E at pos=%d, remaining='%s'\n", pos, s+pos);
     trace_push("E"); print_trace("push E");
     if (!parseT()) return 0;
     if (!parseEPrime()) return 0;
