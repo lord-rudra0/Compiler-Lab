@@ -1,0 +1,27 @@
+#include <stdio.h>
+
+int main() {
+    int a = 10, b = 20, c = 30;
+
+    // ✅ Valid if #1
+    if (a < b) {
+        printf("a is less than b\n");
+    }
+
+    // ✅ Valid if #2
+    if (c > b) {
+        printf("c is greater than b\n");
+    }
+
+    // ✅ Valid if #3
+    if ((a + b) == c) {
+        printf("a + b is equal to c\n");
+    }
+
+    // ❌ Invalid if (missing condition parentheses)
+    if a > b {
+        printf("Invalid if statement!\n");
+    }
+
+    return 0;
+}
