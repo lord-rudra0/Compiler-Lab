@@ -1,0 +1,4 @@
+q0 x q0
+q0 e q1
+q1 y q1
+q1 e q2
